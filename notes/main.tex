@@ -1,0 +1,154 @@
+\documentclass[11pt, letterpaper]{article}
+
+% Packages
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage[numbers]{natbib}
+\usepackage{listings, listings-rust}
+\usepackage{xcolor}
+\usepackage{sectsty}
+\usepackage[
+  font=small,
+  skip=6pt,
+]{caption}
+\usepackage[
+  colorlinks = true,
+  allcolors = blue,
+]{hyperref}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+% Options
+\allsectionsfont{\normalsize}
+\lstset{
+  backgroundcolor=\color{backcolour},
+  commentstyle=\color{codegreen},
+  keywordstyle=\color{magenta},
+  numberstyle=\ttfamily\scriptsize\color{codegray},
+  stringstyle=\color{codepurple},
+  basicstyle=\ttfamily\footnotesize,
+  breakatwhitespace=false,
+  breaklines=true,
+  captionpos=b,
+  keepspaces=true,
+  numbers=left,
+  numbersep=7pt,
+  showspaces=false,
+  showstringspaces=false,
+  showtabs=false,
+  tabsize=2,
+  framerule=0pt,
+  lineskip=-0.1pt,
+  frame=single
+}
+
+% Metadata
+\title{Better SQL}
+\author{Dennis Eum}
+\date{January 12, 2025}
+
+% Document
+\begin{document}
+
+\begin{lstlisting}[language=SQL]
+INSERT INTO locations (name, description, latitude, longitude, geom)
+VALUES (
+    'Empire State Building',
+    'Famous skyscraper in New York City',
+    40.7484,
+    -73.9857,
+    ST_SetSRID(ST_MakePoint(-73.9857, 40.7484), 4326)
+);
+\end{lstlisting}
+
+\begin{lstlisting}[language=Rust]
+// PostGIS Extension Types
+type Point;
+type Polygon;
+type Geometry = {Point, Polygon};
+type ST_MakePoint(Float, Float): Point;
+type ST_SetSRID(Geometry, Integer): Point;
+
+stmt get_users(
+  created_between: Option<Tuple<Integer, Integer>>,
+  limit: Option<Integer>
+): Array<Row> {
+  `SELECT * FROM users`
+  if created_between {
+    `WHERE created_at BETWEEN {created_between[0]} AND {created_between[1]}`
+  }
+  if limit {
+    `LIMIT {limit}`
+  }
+}
+
+stmt bulk_add_users(usernames: Array<String>): Array<Row> {
+  `INSERT INTO users (name) VALUES`
+  for un in usernames; `,` {
+    `({un})`
+  }
+  `RETURNING *`
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=SQL]
+SELECT [ ALL | DISTINCT [ ON ( expression [, ...] ) ] ]
+  [ { * | expression [ [ AS ] output_name ] } [, ...] ]
+  [ FROM from_item [, ...] ]
+  [ WHERE condition ]
+  [ GROUP BY [ ALL | DISTINCT ] grouping_element [, ...] ]
+  [ HAVING condition ]
+  [ WINDOW window_name AS ( window_definition ) [, ...] ]
+  [ { UNION | INTERSECT | EXCEPT } [ ALL | DISTINCT ] select ]
+  [ ORDER BY expression [ ASC | DESC | USING operator ] [ NULLS { FIRST | LAST } ] [, ...] ]
+  [ LIMIT { count | ALL } ]
+  [ OFFSET start [ ROW | ROWS ] ]
+  [ FETCH { FIRST | NEXT } [ count ] { ROW | ROWS } { ONLY | WITH TIES } ]
+  [ FOR { UPDATE | NO KEY UPDATE | SHARE | KEY SHARE } [ OF from_reference [, ...] ] [ NOWAIT | SKIP LOCKED ] [...] ]
+\end{lstlisting}
+
+\begin{lstlisting}[language=SQL]
+INSERT INTO table_name [ AS alias ] [ ( column_name [, ...] ) ]
+  [ OVERRIDING { SYSTEM | USER } VALUE ]
+  { DEFAULT VALUES | VALUES ( { expression | DEFAULT } [, ...] ) [, ...] | query }
+  [ ON CONFLICT [ conflict_target ] conflict_action ]
+  [ RETURNING { * | output_expression [ [ AS ] output_name ] } [, ...] ]
+\end{lstlisting}
+
+\begin{lstlisting}[language=SQL]
+// Should accept
+SELECT *
+FROM notes
+WHERE created_at BETWEEN '2024-02-01 00:00:00' AND '2024-02-15 23:59:59'
+  AND content = '';
+
+// Should reject
+SELECT *
+FROM notes
+WHERE created_at BETWEEN '2024-02-01 00:00:00'
+  AND content = '';
+\end{lstlisting}
+
+A query has to be checked against:
+\begin{itemize}
+  \item All referenced tables and their columns have to exist. Use a symbol table per query to check aliases.
+  \item All referenced columns must be of the correct type. Compare the type of the column with the type of the desired expression.
+  \item Order of the clauses matters. Not checked if parsers accepts yet, but based on its specification, it should.
+  \item \lstinline{WHERE} clause should allow most \href{https://www.postgresql.org/docs/9.0/functions.html}{operators}.
+  \item Default values for insert
+\end{itemize}
+
+Questions:
+
+\begin{itemize}
+  \item Datatype of timestamp vs text, how to define?
+  \item How should types be defined for extensions/parsed?
+\end{itemize}
+
+\bibliographystyle{IEEEtranN}
+{\footnotesize\bibliography{index}}
+
+\end{document}
